@@ -47,12 +47,12 @@ filtered_df = df[
 
 # Aggregated metrics
 st.subheader("📌 Summary Metrics by Platform")
-agg_df = filtered_df.groupby('platform').agg({
+agg_df = filtered_df.groupby('platform', as_index=False).agg({
     'impressions': 'sum',
     'clicks': 'sum',
     'conversions': 'sum',
     'spend': 'sum'
-}).reset_index()
+})
 
 # Calculate KPIs at platform level
 agg_df['CTR (%)'] = round((agg_df['clicks'] / agg_df['impressions']) * 100, 2)
@@ -75,24 +75,36 @@ st.altair_chart(chart, use_container_width=True)
 # Campaign Table
 st.subheader("📋 Campaign-Level Data")
 campaign_list = filtered_df[['date', 'campaign_name', 'platform', 'impressions', 'clicks', 'conversions', 'spend', 'CTR (%)', 'CPA', 'ROAS']]
-selected_row = st.dataframe(campaign_list, use_container_width=True)
+st.dataframe(campaign_list, use_container_width=True)
 
-# Drilldown
-selected_campaign = st.selectbox("🔎 Select a campaign to drill down", options=filtered_df['campaign_name'].unique())
+# Drilldown Section
+st.markdown("---")
+st.subheader("🔍 Campaign Drilldown")
+
+selected_campaign = st.selectbox("Select a campaign to drill down", options=filtered_df['campaign_name'].unique())
 
 if selected_campaign:
     st.markdown(f"### 📌 Drilldown: `{selected_campaign}`")
-    drill_df = filtered_df[filtered_df['campaign_name'] == selected_campaign]
     
-    kpis = drill_df[['CTR (%)', 'CPA', 'ROAS']].mean().to_frame().T.round(2)
-    st.write("**Average KPIs:**")
-    st.dataframe(kpis)
+    drill_df = filtered_df[filtered_df['campaign_name'] == selected_campaign].reset_index(drop=True)
+    
+    if not drill_df.empty:
+        # Compute mean KPIs safely
+        kpi_cols = ['CTR (%)', 'CPA', 'ROAS']
+        kpis = pd.DataFrame(drill_df[kpi_cols].mean()).T.round(2)
+        kpis.index = ['Average KPIs']
+        
+        st.write("**Average KPIs:**")
+        st.dataframe(kpis)
 
-    line_chart = alt.Chart(drill_df).mark_line(point=True).encode(
-        x='date:T',
-        y='clicks:Q',
-        color='platform:N',
-        tooltip=['date:T', 'clicks', 'CTR (%)', 'CPA', 'ROAS']
-    ).interactive()
+        # Time Series Chart for Drilldown
+        line_chart = alt.Chart(drill_df).mark_line(point=True).encode(
+            x='date:T',
+            y='clicks:Q',
+            color='platform:N',
+            tooltip=['date:T', 'clicks', 'CTR (%)', 'CPA', 'ROAS']
+        ).interactive()
 
-    st.altair_chart(line_chart, use_container_width=True)
+        st.altair_chart(line_chart, use_container_width=True)
+    else:
+        st.warning("No data available for this campaign.")
