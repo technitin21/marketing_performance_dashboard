@@ -1,127 +1,40 @@
-import streamlit as st
 import pandas as pd
-import altair as alt
+import numpy as np
 
-st.set_page_config(page_title="Paid Media Dashboard", layout="wide")
-st.title("📊 Paid Media Channels Performance Dashboard")
+# Create dummy data for facebook_campaigns.csv
+fb_data = {
+    'date': pd.to_datetime(pd.date_range(start='2023-01-01', periods=10, freq='D')),
+    'campaign_name': [f'FB_Campaign_{i}' for i in range(10)],
+    'impressions': np.random.randint(1000, 10000, 10),
+    'clicks': np.random.randint(50, 500, 10),
+    'conversions': np.random.randint(5, 50, 10),
+    'spend': np.random.uniform(100, 1000, 10).round(2)
+}
+fb_df = pd.DataFrame(fb_data)
+fb_df.to_csv('/facebook_campaigns.csv', index=False)
 
-# Constants
-AVG_ORDER_VALUE = 500  # ₹500 assumed for ROAS
+# Create dummy data for instagram_campaigns.csv
+ig_data = {
+    'date': pd.to_datetime(pd.date_range(start='2023-01-01', periods=10, freq='D')),
+    'campaign_name': [f'IG_Campaign_{i}' for i in range(10)],
+    'impressions': np.random.randint(800, 8000, 10),
+    'clicks': np.random.randint(40, 400, 10),
+    'conversions': np.random.randint(4, 40, 10),
+    'spend': np.random.uniform(80, 800, 10).round(2)
+}
+ig_df = pd.DataFrame(ig_data)
+ig_df.to_csv('/instagram_campaigns.csv', index=False)
 
-# Load and prepare Facebook data
-fb = pd.read_csv("data/facebook_campaigns.csv", parse_dates=['date'])
-fb['platform'] = 'Facebook'
+# Create dummy data for sfmc_email_campaigns.csv
+sfmc_data = {
+    'date': pd.to_datetime(pd.date_range(start='2023-01-01', periods=10, freq='D')),
+    'campaign_name': [f'SFMC_Campaign_{i}' for i in range(10)],
+    'emails_sent': np.random.randint(5000, 20000, 10),
+    'opens': np.random.randint(1000, 8000, 10),
+    'clicks': np.random.randint(100, 2000, 10),
+    'conversions': np.random.randint(10, 100, 10) # Added conversions column
+}
+sfmc_df = pd.DataFrame(sfmc_data)
+sfmc_df.to_csv('/sfmc_email_campaigns.csv', index=False)
 
-# Load and prepare Instagram data
-ig = pd.read_csv("data/instagram_campaigns.csv", parse_dates=['date'])
-ig['platform'] = 'Instagram'
-
-# Load and sanitize SFMC data
-sfmc = pd.read_csv("data/sfmc_email_campaigns.csv", parse_dates=['date'])
-sfmc = sfmc.loc[:, ~sfmc.columns.duplicated()].copy()  # Remove duplicate columns
-
-sfmc['platform'] = 'SFMC'
-sfmc.rename(columns={
-    "emails_sent": "impressions",
-    "opens": "clicks"
-}, inplace=True)
-
-sfmc['spend'] = 0  # Dummy spend
-sfmc = sfmc.reindex(columns=required_columns)
-
-
-# Add missing column
-sfmc['spend'] = 0  # Dummy spend for SFMC
-
-# Ensure all datasets have same columns
-required_columns = ['date', 'campaign_name', 'impressions', 'clicks', 'conversions', 'spend', 'platform']
-fb = fb.reindex(columns=required_columns)
-ig = ig.reindex(columns=required_columns)
-sfmc = sfmc.reindex(columns=required_columns)
-
-# Combine all data
-df = pd.concat([fb, ig, sfmc], ignore_index=True)
-
-# Replace 0 to avoid division by zero
-df['impressions'] = df['impressions'].replace(0, 1)
-df['conversions'] = df['conversions'].replace(0, 1)
-df['spend'] = df['spend'].replace(0, 1)
-
-# KPI calculations
-df['CTR (%)'] = round((df['clicks'] / df['impressions']) * 100, 2)
-df['CPA'] = round(df['spend'] / df['conversions'], 2)
-df['ROAS'] = round((df['conversions'] * AVG_ORDER_VALUE) / df['spend'], 2)
-
-# Sidebar filters
-st.sidebar.header("🔍 Filter")
-platforms = st.sidebar.multiselect("Platform", options=df['platform'].unique(), default=df['platform'].unique())
-date_range = st.sidebar.date_input("Date Range", [df['date'].min(), df['date'].max()])
-
-# Filter data
-filtered_df = df[
-    (df['platform'].isin(platforms)) &
-    (df['date'] >= pd.to_datetime(date_range[0])) &
-    (df['date'] <= pd.to_datetime(date_range[1]))
-]
-
-# Summary table
-st.subheader("📌 Summary Metrics by Platform")
-agg_df = filtered_df.groupby('platform', as_index=False).agg({
-    'impressions': 'sum',
-    'clicks': 'sum',
-    'conversions': 'sum',
-    'spend': 'sum'
-})
-agg_df['CTR (%)'] = round((agg_df['clicks'] / agg_df['impressions']) * 100, 2)
-agg_df['CPA'] = round(agg_df['spend'] / agg_df['conversions'], 2)
-agg_df['ROAS'] = round((agg_df['conversions'] * AVG_ORDER_VALUE) / agg_df['spend'], 2)
-
-st.dataframe(agg_df)
-
-# Time series chart
-st.subheader("📈 Clicks Over Time by Platform")
-chart = alt.Chart(filtered_df).mark_line(point=True).encode(
-    x='date:T',
-    y='clicks:Q',
-    color='platform:N',
-    tooltip=['date:T', 'campaign_name', 'clicks', 'CTR (%)']
-).interactive()
-
-st.altair_chart(chart, use_container_width=True)
-
-# Campaign table
-st.subheader("📋 Campaign-Level Data")
-campaign_list = filtered_df[['date', 'campaign_name', 'platform', 'impressions', 'clicks', 'conversions', 'spend', 'CTR (%)', 'CPA', 'ROAS']]
-st.dataframe(campaign_list, use_container_width=True)
-
-# Drilldown section
-st.markdown("---")
-st.subheader("🔍 Campaign Drilldown")
-
-selected_campaign = st.selectbox("Select a campaign to drill down", options=filtered_df['campaign_name'].unique())
-
-if selected_campaign:
-    st.markdown(f"### 📌 Drilldown: `{selected_campaign}`")
-    
-    drill_df = filtered_df[filtered_df['campaign_name'] == selected_campaign].reset_index(drop=True)
-    
-    if not drill_df.empty:
-        # Show average KPIs
-        kpi_cols = ['CTR (%)', 'CPA', 'ROAS']
-        kpis = pd.DataFrame(drill_df[kpi_cols].mean()).T.round(2)
-        kpis.index = ['Average KPIs']
-        
-        st.write("**Average KPIs:**")
-        st.dataframe(kpis)
-
-        # Line chart for drilldown
-        line_chart = alt.Chart(drill_df).mark_line(point=True).encode(
-            x='date:T',
-            y='clicks:Q',
-            color='platform:N',
-            tooltip=['date:T', 'clicks', 'CTR (%)', 'CPA', 'ROAS']
-        ).interactive()
-
-        st.altair_chart(line_chart, use_container_width=True)
-    else:
-        st.warning("No data available for this campaign.")
+print("Dummy CSV files created: facebook_campaigns.csv, instagram_campaigns.csv, sfmc_email_campaigns.csv")
