@@ -16,13 +16,19 @@ fb['platform'] = 'Facebook'
 ig = pd.read_csv("data/instagram_campaigns.csv", parse_dates=['date'])
 ig['platform'] = 'Instagram'
 
-# Load and prepare SFMC data
+# Load and sanitize SFMC data
 sfmc = pd.read_csv("data/sfmc_email_campaigns.csv", parse_dates=['date'])
+sfmc = sfmc.loc[:, ~sfmc.columns.duplicated()].copy()  # Remove duplicate columns
+
 sfmc['platform'] = 'SFMC'
 sfmc.rename(columns={
     "emails_sent": "impressions",
     "opens": "clicks"
 }, inplace=True)
+
+sfmc['spend'] = 0  # Dummy spend
+sfmc = sfmc.reindex(columns=required_columns)
+
 
 # Add missing column
 sfmc['spend'] = 0  # Dummy spend for SFMC
